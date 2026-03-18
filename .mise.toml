@@ -1,0 +1,98 @@
+[tools]
+poetry = { version = "latest", pyproject = "{{ config_root }}/pyproject.toml" }
+python = "3.14"
+
+[env]
+_.python.venv = { path = "{{config_root}}/.venv", create = true }
+
+[settings]
+auto_install = true
+
+# Task definitions for testing (similar to npm scripts)
+[tasks]
+
+# Run all tests (unit + integration with aria2c lifecycle management)
+test = "python scripts/run_tests.py"
+
+# Run only unit tests (fast, no aria2c needed)
+"test:unit" = "python scripts/run_tests.py --unit"
+
+# Run only integration tests (requires aria2c)
+"test:integration" = "python scripts/run_tests.py --integration"
+
+# Run tests with coverage report
+"test:coverage" = "python scripts/run_tests.py --coverage"
+
+# Run unit tests with coverage
+"test:unit:coverage" = "python scripts/run_tests.py --unit --coverage"
+
+# Setup aria2c configuration
+"test:setup" = "python scripts/run_tests.py --setup-only"
+
+# Run tests without managing aria2c daemon (assumes already running)
+"test:no-daemon" = "python scripts/run_tests.py --no-daemon"
+
+# Directly run pytest (low-level access)
+"test:pytest" = "poetry run pytest"
+
+# Watch mode (requires pytest-watch - optional)
+# "test:watch" = "poetry run ptw"
+
+# Lint and format checks
+"lint" = "poetry run ruff check src/ tests/"
+"format" = "poetry run ruff format src/ tests/"
+"format:check" = "poetry run ruff format --check src/ tests/"
+
+# Development and runtime tasks
+# Start the ariatuc TUI application (logs to file only)
+"dev" = "python scripts/start_app.py"
+
+# Start with DEBUG logging (logs to file only)
+"dev:debug" = "ARIATUC_LOG_LEVEL=DEBUG python scripts/start_app.py"
+
+# Start with console logging enabled (logs appear on terminal, not recommended for TUI)
+"dev:console" = "ARIATUC_LOG_CONSOLE=true python scripts/start_app.py"
+
+# Start with separate log viewer (recommended workflow)
+# Uses tmux to split terminal: app on top, logs on bottom
+"dev:watch" = "bash scripts/start_with_logs.sh"
+
+# aria2c RPC server management
+"aria2:start" = "python scripts/start_aria2.py"
+"aria2:stop" = "python scripts/start_aria2.py --stop"
+"aria2:restart" = "python scripts/start_aria2.py --restart"
+"aria2:status" = "python scripts/start_aria2.py --status"
+"aria2:logs" = "python scripts/start_aria2.py --logs"
+"aria2:logs:follow" = "python scripts/start_aria2.py --logs --follow"
+
+# Combined: start aria2c and then the app
+"start" = { depends = [
+  "aria2:start",
+], run = "python scripts/start_app.py --check" }
+
+# Application log management
+"logs" = "cat logs/ariatuc.log"
+"logs:tail" = "tail -f logs/ariatuc.log"
+"logs:tail:n" = "tail -n 100 logs/ariatuc.log"
+"logs:clean" = "rm -rf logs/*.log*"
+
+# Clean up generated/cache files
+# clear:cache - remove tool caches only (.mypy_cache, .pytest_cache, .ruff_cache, __pycache__, *.pyc)
+"clear:cache" = "find . -name '__pycache__' -not -path './.git/*' -exec rm -rf {} + 2>/dev/null; find . -name '*.pyc' -not -path './.git/*' -delete 2>/dev/null; rm -rf .mypy_cache .pytest_cache .ruff_cache; echo 'Cache cleaned.'"
+# clear - remove caches AND virtual environment (requires `mise install` or `poetry install` to restore)
+"clear" = { depends = [
+  "clear:cache",
+], run = "rm -rf .venv; echo 'Virtual environment removed. Run: poetry install'" }
+
+# Sync project to remote storage (excludes gitignored files)
+[tasks.sync]
+description = "Sync project to remote storage, excluding gitignored files"
+run = """
+#!/usr/bin/env bash
+rclone sync . koofr:Codespace/ariatuc/ \
+  --filter-from <(
+    echo "- .git/**"
+    git ls-files --others --ignored --exclude-standard | sed 's/^/- /'
+    echo "+ **"
+  )
+"""

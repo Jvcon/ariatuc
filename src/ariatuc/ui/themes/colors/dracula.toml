@@ -1,0 +1,57 @@
+# Dracula Color Scheme
+# Based on: https://draculatheme.com
+# Official spec: https://spec.draculatheme.com
+
+[metadata]
+name = "Dracula"
+description = "Official Dracula dark theme optimized for terminal UIs"
+author = "Dracula Theme"
+url = "https://draculatheme.com"
+dark = true
+
+# Required colors (mapped to Textual ColorSystem)
+[colors]
+# Main colors
+primary = "#bd93f9"        # Dracula Purple - main UI color (borders, titles)
+secondary = "#8be9fd"      # Dracula Cyan - secondary highlight
+accent = "#ff79c6"         # Dracula Pink - focus/active states
+foreground = "#f8f8f2"     # Dracula Foreground - main text
+
+# Background colors
+background = "#282a36"     # Dracula Background
+surface = "#44475a"        # Dracula Current Line (panels, cards)
+panel = "#282a36"          # Same as background for consistency
+boost = "#44475a"          # Focus/hover background (same as surface)
+
+# Status colors
+success = "#50fa7b"        # Dracula Green - success/active downloads
+error = "#ff5555"          # Dracula Red - errors/failures
+warning = "#ffb86c"        # Dracula Orange - warnings
+
+# Additional theme-specific colors (not in standard ColorSystem)
+[extra_colors]
+# Dracula official palette
+comment = "#6272a4"        # Comment gray - muted text
+cyan = "#8be9fd"           # Info color
+green = "#50fa7b"          # Success emphasis
+orange = "#ffb86c"         # Warning emphasis
+pink = "#ff79c6"           # Accent emphasis
+purple = "#bd93f9"         # Primary emphasis
+red = "#ff5555"            # Error emphasis
+yellow = "#f1fa8c"         # Warning muted
+
+# Derived colors
+purple_light = "#c9a9fa"   # Lighter purple (hover states)
+purple_dark = "#9d73d9"    # Darker purple
+text_muted = "#6272a4"     # Same as comment
+border = "#6272a4"         # Border color (muted)
+border_focus = "#bd93f9"   # Border on focus (primary)
+
+# Color philosophy
+[philosophy]
+description = """
+Dracula uses purple (#bd93f9) as primary color for main UI elements,
+pink (#ff79c6) as accent for focus and active states, and carefully
+selected colors for status indications. The palette is optimized for
+high contrast on dark backgrounds (#282a36).
+"""

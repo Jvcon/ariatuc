@@ -1,0 +1,30 @@
+project_name: "ariatuc"
+default_status: "To Do"
+statuses: ["To Do", "In Progress", "Blocked", "Done"]
+labels:
+  - aria2rpc
+  - ariatuc
+  - ui
+  - service
+  - manager
+  - test
+  - docs
+  - infra
+  - p0
+  - p1
+  - p2
+  - p3
+milestones:
+  - "P0: MVP"
+  - "P1: Core Features"
+  - "P2: Advanced Features"
+  - "P3: Extended Features"
+date_format: yyyy-mm-dd
+max_column_width: 30
+auto_open_browser: false
+default_port: 6420
+remote_operations: true
+auto_commit: true
+bypass_git_hooks: false
+check_active_branches: true
+active_branch_days: 30
