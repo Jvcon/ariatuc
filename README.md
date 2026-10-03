@@ -1,41 +1,49 @@
 # ariatuc
 
-**Aria2c TUI** - A Terminal User Interface for aria2c download manager
+**Terminal control surface for aria2 and aria2-next.**
+
+A Python workspace that ships two things in one repo:
+
+- **`aria2rpc`** — a standalone Python client library for the aria2 JSON-RPC interface, with
+  first-class support for [`aria2-next`](https://github.com/AnInsomniacy/aria2-next) extensions
+  (HLS / DASH media tasks, capability detection, `finishMedia`, `retryMedia`).
+- **`ariatuc`** — a Textual TUI built on top of `aria2rpc`. A terminal alternative to AriaNg for
+  anyone running `aria2c` or `aria2-next`.
+
+The library is the product. The TUI is the reference application and the UX test bed.
 
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A feature-rich, keyboard-driven terminal interface for managing aria2c downloads, inspired by lazygit's UX principles and providing functionality equivalent to the AriaNg web frontend.
+## Why ariatuc
 
-## Features
+- 🚀 **One client, two engines** — speaks both upstream `aria2c` and the `aria2-next` fork
+  transparently. Capability detection tells you which features are available.
+- ⌨️ **Keyboard-driven** — Vim-style navigation and lazygit-inspired panels for download
+  management.
+- 📡 **Real-time updates** — WebSocket transport delivers `onDownloadStart`, `onDownloadComplete`
+  and friends without polling.
+- 🎞️ **Media-aware** (with `aria2-next`) — HLS / DASH downloads report a typed `media` object
+  with track lists; the library exposes `finish_media()` and `retry_media()`.
+- 🧱 **Library-first** — `aria2rpc` is reusable from any async Python program; the TUI is one
+  consumer among many.
 
-- 🚀 **Fast & Lightweight** - Built with Python and Textual
-- ⌨️ **Keyboard-Driven** - Vim-style navigation and shortcuts
-- 📊 **Real-time Updates** - WebSocket support for instant status updates
-- 🔄 **Multiple Servers** - Manage multiple aria2 RPC servers
-- 📦 **Protocol Support** - HTTP, FTP, BitTorrent, and Metalink downloads
-- ⚙️ **Full Configuration** - Global and per-download settings
-- 🎨 **Rich UI** - Progress bars, color coding, and statistics
+## Quick start
 
-## Quick Start
-
-### 1. Install aria2c
-
-```bash
-# macOS
-brew install aria2
-
-# Ubuntu/Debian
-sudo apt install aria2
-```
-
-### 2. Start aria2c with RPC
+### 1. Pick your engine
 
 ```bash
+# Vanilla aria2c
+brew install aria2          # macOS
+sudo apt install aria2      # Debian / Ubuntu
 aria2c --enable-rpc
+
+# Or aria2-next (fork with native HLS / DASH and ED2K)
+# https://github.com/AnInsomniacy/aria2-next/releases
+aria2-next --enable-rpc
 ```
 
-### 3. Install ariatuc
+### 2. Install ariatuc
 
 ```bash
 git clone https://github.com/Jvcon/ariatuc.git
@@ -44,61 +52,71 @@ poetry install
 poetry run ariatuc
 ```
 
+## Using `aria2rpc` from your own code
+
+```python
+from aria2rpc import Aria2Client, is_aria2_next
+
+async with Aria2Client("ws://localhost:6800/jsonrpc") as client:
+    # Capability detection
+    if await is_aria2_next(client):
+        print("Connected to aria2-next; HLS / DASH available")
+
+    # Standard aria2 RPC
+    gid = await client.add_uri(["https://example.com/file.iso"])
+    status = await client.tell_status(gid)
+    print(f"Progress: {status.completed_length}/{status.total_length}")
+
+    # aria2-next: media-aware progress + finish / retry
+    if status.media is not None:
+        print(f"Media state: {status.media.state}, "
+              f"protocol: {status.media.protocol}")
+        if status.media.state == "awaiting-selection":
+            await client.change_option(gid, {"media-pause-after-probe": "false"})
+```
+
+See [`docs/aria2rpc/api.md`](docs/aria2rpc/api.md) for the full reference and
+[`docs/aria2rpc/aria2-next.md`](docs/aria2rpc/aria2-next.md) for the media flow.
+
 ## Documentation
 
-📖 **[Full Documentation](docs/)** - Comprehensive guides and references
+📖 **[Full documentation](docs/)**
 
-### For Users
-- [Quick Start Guide](docs/quick-start.md) - Get started in 5 minutes
-- [Installation Guide](docs/installation.md) - Detailed installation instructions
-
-### For Developers
-- [Development Guide](docs/development.md) - Toolchain setup (Ruff, Mypy, Pytest)
-- [aria2rpc Library](docs/aria2rpc/) - RPC client library documentation
-- [ariatuc Development](docs/ariatuc/) - TUI application development
+| Audience | Start here |
+|----------|-----------|
+| Users running the TUI | [docs/quick-start.md](docs/quick-start.md) |
+| Engineers integrating `aria2rpc` | [docs/aria2rpc/getting-started.md](docs/aria2rpc/getting-started.md) |
+| Anyone interested in where this is going | [docs/ROADMAP.md](docs/ROADMAP.md) |
+| AI coding agents | [AGENTS.md](AGENTS.md) |
 
 ## Development
 
-### Running Tests
-
 ```bash
-# Run unit tests (fast)
-mise run test:unit
-
-# Run all tests
-mise run test
-
-# With coverage
-mise run test:coverage
+mise run lint          # ruff check
+mise run format        # ruff format
+mise run mypy          # static type check
+mise run test:unit     # fast tests, no aria2c daemon
+mise run test          # full suite (auto-manages aria2c)
 ```
 
-See [Testing Guide](docs/aria2rpc/testing.md) for details.
+See [docs/development.md](docs/development.md) for the toolchain.
 
-### Project Status
+## Project status (2026-10)
 
-- **aria2rpc**: 95% complete - Standalone RPC client library
-- **download_manager**: 95% complete - State management
-- **ariatuc CLI**: 25% complete - TUI interface
-- **Overall**: 67% complete
-
-See [TODO.md](TODO.md) for detailed roadmap.
-
-## Contributing
-
-Contributions are welcome! Please see our documentation:
-
-- [Development Guide](docs/development.md) - Setup toolchain (Ruff, Mypy, Pytest)
-- [aria2rpc Development](docs/aria2rpc/) - RPC library (95% complete)
-- [ariatuc Development](docs/ariatuc/development.md) - TUI application (25% complete)
-- [Testing Guide](docs/aria2rpc/testing.md) - Running tests
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details.
+| Component | State |
+|-----------|-------|
+| `aria2rpc` library | Mature; aria2-next extensions landed in R1 |
+| `ariatuc` TUI | Usable; media-aware features land in R2 |
+| Roadmap | [docs/ROADMAP.md](docs/ROADMAP.md) |
 
 ## Acknowledgments
 
-- [aria2](https://aria2.github.io/) - The download utility
-- [Textual](https://textual.textualize.io/) - Python TUI framework
-- [AriaNg](https://github.com/mayswind/AriaNg) - Feature reference
-- [lazygit](https://github.com/jesseduffield/lazygit) - UX inspiration
+- [aria2](https://aria2.github.io/) — the upstream download utility
+- [aria2-next](https://github.com/AnInsomniacy/aria2-next) — maintained fork with HLS / DASH and ED2K
+- [Textual](https://textual.textualize.io/) — Python TUI framework
+- [AriaNg](https://github.com/mayswind/AriaNg) — feature reference
+- [lazygit](https://github.com/jesseduffield/lazygit) — UX inspiration
+
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.

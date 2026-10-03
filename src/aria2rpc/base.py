@@ -710,3 +710,68 @@ class BaseRPCClient(ABC):
             >>> results = await client.multicall(calls)
         """
         return await self._call("system.multicall", [calls])
+
+    # aria2-next extensions
+    #
+    # These methods are only available when the connected server is
+    # aria2-next (https://github.com/AnInsomniacy/aria2-next). They expose
+    # native HLS / DASH media control. Capability checks live in
+    # ``aria2rpc.client.is_aria2_next``; on vanilla aria2c these calls will
+    # raise ``Aria2RPCError`` from the server.
+
+    async def finish_media(self, gid: str) -> str:
+        """Finish an active or paused live recording (aria2-next only).
+
+        Ends an active or paused live recording and finalizes its completed
+        media. Pause retains the task; remove cancels it and discards its
+        recovery state. Finishing and deleting are separate operations.
+
+        Args:
+            gid: GID of the media task.
+
+        Returns:
+            GID of the finished task.
+
+        Raises:
+            Aria2RPCError: If the task is not a media task, or the server is
+                not aria2-next.
+
+        See Also:
+            ``aria2rpc.client.is_aria2_next``: detect support before calling.
+        """
+        return await self._call("aria2.finishMedia", [gid])
+
+    async def retry_media(
+        self,
+        gid: str,
+        options: dict[str, Any] | None = None,
+    ) -> str:
+        """Retry a failed media task (aria2-next only).
+
+        Requeues a failed media task with the same GID and retained native
+        recovery data. Does not delete the stopped result until queue
+        insertion succeeds. Invalid or non-media results are rejected without
+        mutation.
+
+        Use this instead of removing the result and submitting a new GID:
+        ``removeDownloadResult`` intentionally discards media recovery data.
+
+        Args:
+            gid: GID of the failed media task.
+            options: Optional option overrides applied via the paused-task
+                option validator. Must be a paused task.
+
+        Returns:
+            GID of the retried task.
+
+        Raises:
+            Aria2RPCError: If the task is invalid, not a media task, or the
+                server is not aria2-next.
+
+        See Also:
+            ``aria2rpc.client.is_aria2_next``: detect support before calling.
+        """
+        params: list[Any] = [gid]
+        if options:
+            params.append(options)
+        return await self._call("aria2.retryMedia", params)

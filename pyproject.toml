@@ -45,7 +45,15 @@ dev = [
 ]
 
 [tool.poetry]
-packages = [{ include = "ariatuc", from = "src" }]
+# Single repo, dual package. Both packages are installed together by
+# `poetry install`. `aria2rpc` carries its own version in
+# `src/aria2rpc/_version.py`; the package below is the TUI and uses
+# the `[project] version` field above. The `aria2rpc` library is an
+# internal dependency of the TUI and is not published to PyPI yet.
+packages = [
+    { include = "aria2rpc", from = "src" },
+    { include = "ariatuc", from = "src" },
+]
 
 # ==============================================================================
 # Pytest Configuration

@@ -11,6 +11,7 @@ All themes must extend the `Theme` abstract base class from `base.py`:
 ```python
 from ariatuc.ui.themes.base import Theme
 
+
 class MyTheme(Theme):
     @property
     def name(self) -> str:
@@ -95,6 +96,7 @@ Create a new file in this directory, e.g., `my_theme.py`:
 
 from ariatuc.ui.themes.base import Theme
 
+
 class MyTheme(Theme):
     @property
     def name(self) -> str:
@@ -162,10 +164,14 @@ The theme is automatically applied through `ui/app.py`:
 ```python
 from ariatuc.ui.themes import DEFAULT_THEME
 
+
 class AriatucApp(App):
-    CSS = DEFAULT_THEME.full_css + """
+    CSS = (
+        DEFAULT_THEME.full_css
+        + """
     /* Additional app-specific styles */
     """
+    )
 ```
 
 ## Theme Design Guidelines

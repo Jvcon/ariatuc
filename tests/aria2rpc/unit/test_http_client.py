@@ -225,35 +225,49 @@ async def test_get_session_info():
 
 @pytest.mark.asyncio
 async def test_get_option():
-    """Test getting download options."""
+    """Test getting download options.
+
+    aria2 always returns option values as strings. ``get_option`` parses them
+    to Python native types per the documented contract — booleans become
+    ``bool``, integer-typed options become ``int``, everything else stays a
+    string. ``max-connection-per-server`` is an integer-typed option, so the
+    wire value ``"4"`` must surface as the int ``4``.
+    """
     client = HTTPRPCClient("http://localhost:6800/jsonrpc")
 
-    mock_options = {"dir": "/downloads", "max-connection-per-server": "4"}
+    wire_options = {"dir": "/downloads", "max-connection-per-server": "4"}
 
     with patch.object(client, "_call", new_callable=AsyncMock) as mock_call:
-        mock_call.return_value = mock_options
+        mock_call.return_value = wire_options
 
         options = await client.get_option("gid123")
 
         mock_call.assert_called_once_with("aria2.getOption", ["gid123"])
-        assert options == mock_options
+        assert options == {"dir": "/downloads", "max-connection-per-server": 4}
+        assert isinstance(options["max-connection-per-server"], int)
 
     await client.close()
 
 
 @pytest.mark.asyncio
 async def test_change_option():
-    """Test changing download options."""
+    """Test changing download options.
+
+    ``change_option`` formats Python native values into aria2's wire format
+    before the RPC call. Using a boolean value (``continue``) exercises the
+    formatter — bool is rendered as the literal string ``"true"``.
+    """
     client = HTTPRPCClient("http://localhost:6800/jsonrpc")
 
-    new_options = {"max-download-limit": "1M"}
+    new_options = {"continue": True}
+    wire_options = {"continue": "true"}
 
     with patch.object(client, "_call", new_callable=AsyncMock) as mock_call:
         mock_call.return_value = "OK"
 
         result = await client.change_option("gid123", new_options)
 
-        mock_call.assert_called_once_with("aria2.changeOption", ["gid123", new_options])
+        mock_call.assert_called_once_with("aria2.changeOption", ["gid123", wire_options])
         assert result == "OK"
 
     await client.close()
@@ -261,35 +275,47 @@ async def test_change_option():
 
 @pytest.mark.asyncio
 async def test_get_global_option():
-    """Test getting global options."""
+    """Test getting global options.
+
+    Both ``max-concurrent-downloads`` and ``split`` are integer-typed options
+    on the wire. ``get_global_option`` parses them to ``int`` per the
+    documented contract.
+    """
     client = HTTPRPCClient("http://localhost:6800/jsonrpc")
 
-    mock_options = {"max-concurrent-downloads": "5", "split": "5"}
+    wire_options = {"max-concurrent-downloads": "5", "split": "5"}
 
     with patch.object(client, "_call", new_callable=AsyncMock) as mock_call:
-        mock_call.return_value = mock_options
+        mock_call.return_value = wire_options
 
         options = await client.get_global_option()
 
         mock_call.assert_called_once_with("aria2.getGlobalOption")
-        assert options == mock_options
+        assert options == {"max-concurrent-downloads": 5, "split": 5}
+        assert isinstance(options["max-concurrent-downloads"], int)
+        assert isinstance(options["split"], int)
 
     await client.close()
 
 
 @pytest.mark.asyncio
 async def test_change_global_option():
-    """Test changing global options."""
+    """Test changing global options.
+
+    ``change_global_option`` formats Python native values into aria2's wire
+    format. Using a boolean value (``dry-run``) exercises the formatter.
+    """
     client = HTTPRPCClient("http://localhost:6800/jsonrpc")
 
-    new_options = {"max-overall-download-limit": "2M"}
+    new_options = {"dry-run": False}
+    wire_options = {"dry-run": "false"}
 
     with patch.object(client, "_call", new_callable=AsyncMock) as mock_call:
         mock_call.return_value = "OK"
 
         result = await client.change_global_option(new_options)
 
-        mock_call.assert_called_once_with("aria2.changeGlobalOption", [new_options])
+        mock_call.assert_called_once_with("aria2.changeGlobalOption", [wire_options])
         assert result == "OK"
 
     await client.close()

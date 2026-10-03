@@ -1,7 +1,8 @@
 """aria2rpc - Python client for aria2 JSON-RPC interface.
 
 This package provides a modern, async-first client for aria2 RPC interface.
-It supports both HTTP and WebSocket JSON-RPC protocols.
+It supports both HTTP and WebSocket JSON-RPC protocols, and is forward
+compatible with the ``aria2-next`` fork's media extensions.
 
 HTTP Example:
     >>> from aria2rpc import Aria2Client
@@ -20,13 +21,28 @@ WebSocket Example (with events):
     ...     gid = await client.add_uri(["http://example.com/file.zip"])
     ...     await asyncio.sleep(3600)  # Keep alive to receive events
 
+aria2-next capability and media extensions:
+    >>> from aria2rpc import Aria2Client, is_aria2_next
+    >>> async with Aria2Client("ws://localhost:6800/jsonrpc") as client:
+    ...     if await is_aria2_next(client):
+    ...         gid = await client.add_uri(
+    ...             ["https://example.com/stream.m3u8"],
+    ...             options={"media-pause-after-probe": "true"},
+    ...         )
+    ...         status = await client.tell_status(gid)
+    ...         print(f"Media state: {status.media.state}, "
+    ...               f"tracks: {len(status.media.tracks)}")
+
 The package features smart protocol selection: use ws:// for WebSocket
 (with real-time events) or http:// for HTTP (simple requests). Both
-protocols support all 18 aria2 RPC methods.
+protocols support all 18 standard aria2 RPC methods; aria2-next's two
+extra methods (``finishMedia``, ``retryMedia``) are exposed as
+``finish_media`` and ``retry_media`` on every client.
 """
 
+from aria2rpc._version import __version__
 from aria2rpc.base import BaseRPCClient
-from aria2rpc.client import Aria2Client
+from aria2rpc.client import Aria2Client, is_aria2_next
 from aria2rpc.exceptions import (
     Aria2AuthenticationError,
     Aria2ConnectionError,
@@ -35,14 +51,26 @@ from aria2rpc.exceptions import (
     Aria2TimeoutError,
 )
 from aria2rpc.http import HTTPRPCClient
-from aria2rpc.models import DownloadStatus, FileServer, GlobalStat, Peer, Server, Version
+from aria2rpc.models import (
+    DownloadStatus,
+    FileServer,
+    GlobalStat,
+    MediaDownloadStatus,
+    MediaFeatures,
+    MediaState,
+    MediaTrack,
+    Peer,
+    Server,
+    Version,
+)
 from aria2rpc.websocket import Aria2Event, WebSocketRPCClient
 
-__version__ = "0.3.0"
-
 __all__ = [
+    # Version
+    "__version__",
     # Main client interface
     "Aria2Client",
+    "is_aria2_next",
     # Base class for custom implementations
     "BaseRPCClient",
     # Protocol implementations
@@ -57,6 +85,11 @@ __all__ = [
     "Peer",
     "Server",
     "FileServer",
+    # aria2-next extensions
+    "MediaState",
+    "MediaTrack",
+    "MediaDownloadStatus",
+    "MediaFeatures",
     # Exceptions
     "Aria2Error",
     "Aria2ConnectionError",

@@ -1,14 +1,25 @@
 """Data models for aria2 RPC responses.
 
 These models provide type-safe representations of aria2 RPC data structures.
-They are lightweight wrappers around the raw JSON responses from aria2.
+They are lightweight wrappers around the raw JSON responses from aria2, with
+typed accessors for the fields we use.
+
+aria2-next extends the upstream aria2 RPC with media task fields, capability
+flags, and two new methods (`finishMedia`, `retryMedia`). Models for those
+extensions live at the bottom of this file.
 """
 
+from __future__ import annotations
+
+from enum import StrEnum
 from typing import Any
 
 
 class RPCResponse:
-    """Base class for RPC responses."""
+    """Base class for RPC responses.
+
+    Wraps the raw dictionary from aria2. Subclasses expose typed accessors.
+    """
 
     def __init__(self, data: dict[str, Any]):
         """Initialize from raw aria2 response data.
@@ -36,7 +47,8 @@ class DownloadStatus(RPCResponse):
     """Represents download status information from aria2.
 
     Provides convenient access to common fields while maintaining
-    access to all raw data from aria2.
+    access to all raw data from aria2. On aria2-next servers, the
+    `media` field exposes media task details via the `media` property.
     """
 
     @property
@@ -99,6 +111,19 @@ class DownloadStatus(RPCResponse):
         """Error message if status is 'error'."""
         return self._data.get("errorMessage")
 
+    @property
+    def media(self) -> MediaDownloadStatus | None:
+        """aria2-next media object (None on vanilla aria2c).
+
+        Returns:
+            MediaDownloadStatus when the task is an HLS / DASH media task;
+            None for ordinary downloads or when the server is upstream aria2c.
+        """
+        media_data = self._data.get("media")
+        if media_data is None:
+            return None
+        return MediaDownloadStatus(media_data)
+
 
 class GlobalStat(RPCResponse):
     """Represents global statistics from aria2."""
@@ -146,6 +171,28 @@ class Version(RPCResponse):
     def enabled_features(self) -> list[str]:
         """List of enabled features."""
         return self._data.get("enabledFeatures", [])
+
+    @property
+    def media_features(self) -> MediaFeatures | None:
+        """aria2-next media feature map (None on vanilla aria2c).
+
+        Returns:
+            MediaFeatures when the server is aria2-next and advertises the
+            `mediaFeatures` field; None otherwise.
+        """
+        raw = self._data.get("mediaFeatures")
+        if raw is None:
+            return None
+        return MediaFeatures(raw)
+
+    @property
+    def is_aria2_next(self) -> bool:
+        """True when the server is aria2-next.
+
+        Detected by presence of the `mediaFeatures` field on `getVersion`.
+        aria2c does not return this field.
+        """
+        return "mediaFeatures" in self._data
 
 
 class Peer(RPCResponse):
@@ -238,3 +285,161 @@ class FileServer(RPCResponse):
         """List of servers for this file."""
         servers_data = self._data.get("servers", [])
         return [Server(server) for server in servers_data]
+
+
+# ==============================================================================
+# aria2-next extensions
+# ==============================================================================
+
+
+class MediaState(StrEnum):
+    """Lifecycle phases of an aria2-next media task.
+
+    Per aria2-next docs/media-downloads.md. Standard RPC status retains the
+    ordinary task lifecycle; only successful muxing and publishing the output
+    file produce a completed task.
+    """
+
+    WAITING = "waiting"
+    PROBING = "probing"
+    AWAITING_SELECTION = "awaiting-selection"
+    DOWNLOADING = "downloading"
+    RECORDING = "recording"
+    FINALIZING = "finalizing"
+    PAUSED = "paused"
+    COMPLETE = "complete"
+    ERROR = "error"
+    REMOVED = "removed"
+
+
+class MediaTrack(RPCResponse):
+    """A single media track in an aria2-next HLS / DASH presentation.
+
+    Track IDs derive from native representation identity and media attributes,
+    not manifest positions. Treat IDs as opaque; do not parse them.
+    """
+
+    @property
+    def track_id(self) -> str:
+        """Opaque native track identifier."""
+        return self._data.get("id", "")
+
+    @property
+    def type(self) -> str:
+        """Track type: 'video', 'audio', or 'subtitle'."""
+        return self._data.get("type", "")
+
+    @property
+    def codec(self) -> str:
+        """Codec identifier (e.g. 'avc1.640028', 'mp4a.40.2')."""
+        return self._data.get("codec", "")
+
+    @property
+    def language(self) -> str:
+        """BCP-47 language tag, empty string if unknown."""
+        return self._data.get("language", "")
+
+    @property
+    def bandwidth(self) -> int:
+        """Bandwidth in bits per second."""
+        return int(self._data.get("bandwidth", 0))
+
+    @property
+    def frame_rate(self) -> float:
+        """Frame rate as a decimal; 0 means unknown."""
+        raw = self._data.get("frameRate", "0")
+        return float(raw) if raw else 0.0
+
+    @property
+    def channels(self) -> int:
+        """Audio channel count; 0 for non-audio tracks."""
+        return int(self._data.get("channels", 0))
+
+
+class MediaDownloadStatus(RPCResponse):
+    """The `media` object exposed on aria2-next task status responses.
+
+    Media progress is based on `completedDuration` (milliseconds). Output byte
+    lengths remain unknown until remuxing finishes: source segment bytes are
+    not the same quantity as the final container size. `downloadedLength`
+    reports retained media payload independently of the standard network speed.
+    """
+
+    @property
+    def state(self) -> MediaState:
+        """Current media lifecycle phase."""
+        return MediaState(self._data.get("state", "waiting"))
+
+    @property
+    def protocol(self) -> str:
+        """'hls', 'dash', or 'file'."""
+        return self._data.get("protocol", "")
+
+    @property
+    def live(self) -> bool:
+        """True for live HLS / DASH streams."""
+        return self._data.get("live", "false") == "true"
+
+    @property
+    def duration(self) -> int:
+        """Presentation duration in milliseconds; 0 for live."""
+        return int(self._data.get("duration", 0))
+
+    @property
+    def completed_duration(self) -> int:
+        """Completed media duration in milliseconds."""
+        return int(self._data.get("completedDuration", 0))
+
+    @property
+    def downloaded_length(self) -> int:
+        """Retained media payload bytes (independent of network speed)."""
+        return int(self._data.get("downloadedLength", 0))
+
+    @property
+    def progress(self) -> float:
+        """Media progress as a decimal between 0 and 1."""
+        return float(self._data.get("progress", 0))
+
+    @property
+    def length_known(self) -> bool:
+        """False while the engine has not yet determined final length."""
+        return self._data.get("lengthKnown", "false") == "true"
+
+    @property
+    def error(self) -> str:
+        """Diagnostic text for the last error, empty otherwise."""
+        return self._data.get("error", "")
+
+    @property
+    def error_code(self) -> str:
+        """Structured error code such as 'unsupported_source' or empty on success."""
+        return self._data.get("errorCode", "")
+
+    @property
+    def tracks(self) -> list[MediaTrack]:
+        """Available media tracks (populated after probing)."""
+        return [MediaTrack(t) for t in self._data.get("tracks", [])]
+
+
+class MediaFeatures(RPCResponse):
+    """Capability flags advertised by `getVersion.mediaFeatures`.
+
+    Only present on aria2-next. Upstream docs list `request-contexts`,
+    `stable-track-ids`, and `structured-errors` as the current flags. Unknown
+    flags are still parsed (call `.raw`) so future extensions don't break.
+    """
+
+    @property
+    def request_contexts(self) -> bool:
+        """Server supports scoped HTTP request contexts for media tasks."""
+        return self._data.get("request-contexts", False) is True
+
+    @property
+    def stable_track_ids(self) -> bool:
+        """Track IDs remain stable across playlist refreshes."""
+        return self._data.get("stable-track-ids", False) is True
+
+    @property
+    def structured_errors(self) -> bool:
+        """Server returns structured `errorCode` values for media failures."""
+        return self._data.get("structured-errors", False) is True

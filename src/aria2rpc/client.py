@@ -2,8 +2,12 @@
 
 This module provides smart protocol selection based on URL scheme.
 WebSocket protocol supports all HTTP RPC methods plus real-time events.
+
+It also exposes the module-level ``is_aria2_next`` capability check, which
+detects the ``aria2-next`` fork's media-extensions field on ``getVersion``.
 """
 
+from aria2rpc.base import BaseRPCClient
 from aria2rpc.http import HTTPRPCClient
 from aria2rpc.websocket import WebSocketRPCClient
 
@@ -55,4 +59,37 @@ def Aria2Client(url: str, **kwargs) -> WebSocketRPCClient | HTTPRPCClient:
     return HTTPRPCClient(url, **kwargs)
 
 
-__all__ = ["Aria2Client"]
+async def is_aria2_next(client: BaseRPCClient) -> bool:
+    """Check whether the connected server is ``aria2-next``.
+
+    Detects the fork by calling ``getVersion`` and looking for the
+    ``mediaFeatures`` field, which is unique to ``aria2-next``. Returns
+    ``False`` against upstream ``aria2c``.
+
+    Use this to gate calls to ``finish_media`` and ``retry_media`` so the
+    same client code can talk to either engine without a hard requirement
+    on aria2-next.
+
+    Args:
+        client: Any ``aria2rpc`` client (HTTP or WebSocket). The client does
+            not need to be connected yet; ``getVersion`` opens a request.
+
+    Returns:
+        ``True`` if the server reports ``mediaFeatures``; ``False`` otherwise.
+
+    Raises:
+        Aria2ConnectionError: If the server cannot be reached.
+        Aria2AuthenticationError: If the secret token is rejected.
+        Aria2RPCError: For other RPC-level failures.
+
+    Example:
+        >>> from aria2rpc import Aria2Client, is_aria2_next
+        >>> async with Aria2Client("ws://localhost:6800/jsonrpc") as client:
+        ...     if await is_aria2_next(client):
+        ...         print("HLS / DASH media extensions are available")
+    """
+    version = await client.get_version()
+    return version.is_aria2_next
+
+
+__all__ = ["Aria2Client", "is_aria2_next"]
